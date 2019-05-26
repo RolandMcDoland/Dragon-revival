@@ -61,7 +61,7 @@ int main(int argc, char **argv)
         }
 
         // A counter generating new contract number every time
-        int contract_counter = 0;
+        int contract_counter = 1;
 
         int seconds;
         srand(time(NULL));
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
         profession_array = malloc(3 * sizeof(int));
 
         // Array containing numbers of not yet done contracts 
-        int active_contracts[100];
+        int active_contracts[100] = {};
 
         // 0- head expert, 1- torso expert, 2- tail expert
         int profession;
@@ -112,13 +112,30 @@ int main(int argc, char **argv)
         }
         printf("Profession number: %d, tid: %d\n", profession, tid);
 
-        int *contract_number;
+        int contract_number;
 
         // Only receive for testing purposes for now
         while(1)
         {
             MPI_Recv(&contract_number, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);        
             printf("New contract received by %d\n", tid);
+
+            // Depending on the tag process appropriatly
+            switch(status.MPI_TAG)
+            {
+                // When it's a new contract
+                case 1:
+                    // Put the new contract in the first free space in active contracts array
+                    for(int i = 0; i < 100; i++)
+                    {
+                        if(active_contracts[i] == 0)
+                        {
+                            active_contracts[i] = contract_number;
+                            break;
+                        }
+                    }
+                    break;
+            }
         }
     }
 
