@@ -8,7 +8,7 @@
 #include <time.h>
 
 // Seperate the professions between available processes
-int *setup(size)
+int * setup(size)
 {
     // Array containing number of processes in each profession
     static int prof_array[3];
@@ -39,8 +39,6 @@ int main(int argc, char **argv)
     int size, tid;
     MPI_Status status;
 
-    int *profession_array;
-
     MPI_Init(&argc, &argv);
 
     MPI_Comm_size( MPI_COMM_WORLD, &size );
@@ -48,6 +46,9 @@ int main(int argc, char **argv)
 
     if(tid == 0)
     {
+        int *profession_array;
+        profession_array = malloc(3 * sizeof(int));
+
         /* Pass size - 1 as available processes since 
         root is exclusively devoted to generating contracts */
         profession_array = setup(size - 1);
@@ -55,7 +56,8 @@ int main(int argc, char **argv)
         // Notify all processes about the profession assignment
         for (int i = 1; i < size; i++)
         {
-            MPI_Ssend(&profession_array, 1, MPI_INT, i, 0, MPI_COMM_WORLD );
+            MPI_Ssend(profession_array, 3, MPI_INT, i, 0, MPI_COMM_WORLD );
+            printf("Sending profession array\n");
         }
 
         // A counter generating new contract number every time
@@ -74,7 +76,8 @@ int main(int argc, char **argv)
             // Notify all processes about the profession assignment
             for (int i = 1; i < size; i++)
             {
-                MPI_Ssend(&contract_counter, 1, MPI_INT, i, 0, MPI_COMM_WORLD );
+                MPI_Ssend(&contract_counter, 1, MPI_INT, i, 1, MPI_COMM_WORLD );
+                printf("Sending new contract\n");
             }
 
             contract_counter++;
@@ -82,11 +85,40 @@ int main(int argc, char **argv)
     }
     else
     {
+        int *profession_array;
+        profession_array = malloc(3 * sizeof(int));
+
+        // Array containing numbers of not yet done contracts 
+        int active_contracts[100];
+
+        // 0- head expert, 1- torso expert, 2- tail expert
+        int profession;
+
+        // Receive the profession array to know every process profession
+        MPI_Recv(profession_array, 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+        // Check in array your own profession
+        if(tid <= profession_array[0])
+        {
+            profession = 0;
+        }
+        else if (tid <= profession_array[0] + profession_array[1])
+        {
+            profession = 1;
+        }
+        else
+        {
+            profession = 2;
+        }
+        printf("Profession number: %d, tid: %d\n", profession, tid);
+
+        int *contract_number;
+
         // Only receive for testing purposes for now
         while(1)
         {
-            MPI_Recv(&profession_array, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            printf(" Otrzymalem od %d\n", status.MPI_SOURCE);
+            MPI_Recv(&contract_number, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);        
+            printf("New contract received by %d\n", tid);
         }
     }
 
