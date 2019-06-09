@@ -95,13 +95,25 @@ int main(int argc, char **argv)
         // Array containing numbers of not yet done contracts 
         int active_contracts[100] = {};
 
+        // Array containing tids of cooperating experts from other professions
+        int associates[2] = {};
+
         // 0- head expert, 1- torso expert, 2- tail expert
         int profession;
 
+        int min_tid, profession_count, received, accept_counter, is_accepted;
+
+        int contract_number = -1;
+        int busy = 0;
+        int working = 0;
+        int waiting_for_team = 0;
+        int max_contract_index = 0;
+
+        int *priority_queue;
+        priority_queue = malloc(size * sizeof(int));
+
         // Receive the profession array to know every process profession
         MPI_Recv(profession_array, 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-
-        int min_tid, profession_count;
 
         // Check in array your own profession
         if(tid <= profession_array[0])
@@ -124,20 +136,11 @@ int main(int argc, char **argv)
         }
         printf("Profession number: %d, tid: %d\n", profession, tid);
 
-        int *priority_queue;
-        priority_queue = malloc(size * sizeof(int));
-
         // Initialise the priority queue 
         for(int i = min_tid ;i <= profession_array[profession];i++)
         {
             priority_queue[i] = i - min_tid;
         }
-
-        int contract_number = -1;
-        int received, accept_counter, is_accepted;
-
-        int busy = 0;
-        int max_contract_index = 0;
 
         // Only receive for testing purposes for now
         while(1)
@@ -189,6 +192,7 @@ int main(int argc, char **argv)
 
                     break;
 
+                // When it's a new contract request
                 case 2:
                     //printf("%d: Received new contract request for contract %d\n", tid, received);
 
@@ -200,7 +204,7 @@ int main(int argc, char **argv)
                     else
                     {
                         // Check in priority queue which process is higher
-                        if(priority_queue[status.MPI_SOURCE] < priority_queue[tid])
+                        if(priority_queue[status.MPI_SOURCE] < priority_queue[tid] && !working)
                         {
                             is_accepted = 1;
                         }
@@ -215,9 +219,10 @@ int main(int argc, char **argv)
 
                     break;
 
+                // When it's an accept message
                 case 3:
                     // If process gets an accept increase the counter
-                    if(received)
+                    if(received && contract_number != -1 && busy)
                     {
                         accept_counter++;
                     }
@@ -246,6 +251,7 @@ int main(int argc, char **argv)
                         }
                         priority_queue[tid] = profession_count - 1;
 
+                        // Remove contract from active contracts waiting for completion
                         for(int i = 0;i <= max_contract_index;i++)
                         {
                             if(active_contracts[i] == contract_number)
@@ -254,14 +260,19 @@ int main(int argc, char **argv)
                                 break;
                             }
                         }
+
+                        waiting_for_team = 1;
+                        working = 1;
                     }
 
                     break;
 
+                // When it's a message about a process taking up a contract
                 case 4:
                     // If the process is in the same profession
                     if(status.MPI_SOURCE >= min_tid && status.MPI_SOURCE <= profession_array[profession])
                     { 
+                        // Remove contract from active contracts waiting for completion
                         for(int i = 0;i <= max_contract_index;i++)
                         {
                             if(active_contracts[i] == received)
@@ -274,6 +285,8 @@ int main(int argc, char **argv)
                             and get first undone contract */
                         if(received == contract_number && busy)
                         {
+                            accept_counter = 0;
+
                             for(int i = 0;i <= max_contract_index;i++)
                             {
                                 if(active_contracts[i] != 0)
@@ -282,7 +295,8 @@ int main(int argc, char **argv)
                                     break;
                                 }
                             }
-
+                            
+                            // If there were no contracts waiting 
                             if(received == contract_number)
                             {
                                 contract_number = -1;
@@ -300,7 +314,39 @@ int main(int argc, char **argv)
                         }
                         priority_queue[status.MPI_SOURCE] = profession_count - 1;
                     }
+                    else
+                    {
+                        // If the expert of a different profession takes up the same contract
+                        if(received == contract_number && waiting_for_team)
+                        {
+                            if(associates[0] == 0)
+                            {
+                                associates[0] = status.MPI_SOURCE;
+                            }
+                            else
+                            {
+                                associates[1] = status.MPI_SOURCE;
+                                
+                                // When process knows both associates let them know the team is ready
+                                for(int i = 0;i < 2;i++)
+                                {
+                                    MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+                                }
+                                MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
+                            }
+                        }
+                    }
+                    
 
+                    break;
+
+                case 5:
+                    if(!waiting_for_team)
+                    {
+                        break;
+                    }
+                    waiting_for_team = 0;
+                    printf("Ready to go!\n");
                     break;
 
             }
