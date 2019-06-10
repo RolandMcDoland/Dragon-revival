@@ -108,6 +108,12 @@ int main(int argc, char **argv)
         int working = 0;
         int waiting_for_team = 0;
         int max_contract_index = 0;
+        int trying_get_resource = 0;
+        int using_resource = 0;
+        int desks = 1;
+        int skeletons = 1;
+        int revive_counter = 0;
+        int associates_wait = 0;
 
         int *priority_queue;
         priority_queue = malloc(size * sizeof(int));
@@ -200,12 +206,17 @@ int main(int argc, char **argv)
                     if(contract_number != received)
                     {
                         is_accepted = 1;
+                        //printf("%d:--------------------------------------------------------\n", tid);
                     }
                     else
                     {
                         // Check in priority queue which process is higher
                         if(priority_queue[status.MPI_SOURCE] < priority_queue[tid] && !working)
                         {
+                            /*for(int i = min_tid ;i <= profession_array[profession];i++)
+                            {
+                                printf("%d:------------------------------------------------------%d, %d\n",tid, i, priority_queue[i]);
+                            }*/
                             is_accepted = 1;
                         }
                         else
@@ -263,6 +274,16 @@ int main(int argc, char **argv)
 
                         waiting_for_team = 1;
                         working = 1;
+
+                        if(associates[0] != 0 && associates[1] != 0)
+                        {
+                            // When process knows both associates let them know the team is ready
+                            for(int i = 0;i < 2;i++)
+                            {
+                                MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+                            }
+                            MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
+                        }
                     }
 
                     break;
@@ -272,6 +293,10 @@ int main(int argc, char **argv)
                     // If the process is in the same profession
                     if(status.MPI_SOURCE >= min_tid && status.MPI_SOURCE <= profession_array[profession])
                     { 
+                        // Remove potential associates
+                        associates[0] = 0;
+                        associates[1] = 0;
+
                         // Remove contract from active contracts waiting for completion
                         for(int i = 0;i <= max_contract_index;i++)
                         {
@@ -311,13 +336,15 @@ int main(int argc, char **argv)
                             {
                                 priority_queue[i] -= 1;
                             }
+                            //printf("-------------------------------------------------%d, %d\n",i, priority_queue[i]);
                         }
                         priority_queue[status.MPI_SOURCE] = profession_count - 1;
+                        //printf("-------------------------------------------------%d, %d\n",status.MPI_SOURCE, priority_queue[status.MPI_SOURCE]);
                     }
                     else
                     {
                         // If the expert of a different profession takes up the same contract
-                        if(received == contract_number && waiting_for_team)
+                        if(received == contract_number)
                         {
                             if(associates[0] == 0)
                             {
@@ -327,12 +354,15 @@ int main(int argc, char **argv)
                             {
                                 associates[1] = status.MPI_SOURCE;
                                 
-                                // When process knows both associates let them know the team is ready
-                                for(int i = 0;i < 2;i++)
+                                if(waiting_for_team)
                                 {
-                                    MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+                                    // When process knows both associates let them know the team is ready
+                                    for(int i = 0;i < 2;i++)
+                                    {
+                                        MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+                                    }
+                                    MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
                                 }
-                                MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
                             }
                         }
                     }
@@ -340,13 +370,163 @@ int main(int argc, char **argv)
 
                     break;
 
+                // When it's a message about the whole team of professionals being ready
                 case 5:
+                    // If the process already received the notification break
                     if(!waiting_for_team)
                     {
                         break;
                     }
-                    waiting_for_team = 0;
-                    printf("Ready to go!\n");
+
+                    associates_wait++;
+
+                    if(associates_wait == 3)
+                    {
+                        associates_wait = 0;
+                        waiting_for_team = 0;
+                        //printf("%d Ready to go!\n", tid);
+
+                        // Send request for desk and skeleton
+                        if(profession != 2)
+                        {
+                            accept_counter = 0;
+                            trying_get_resource = 1;
+
+                            for(int i = min_tid;i <= profession_array[profession];i++)
+                            {
+                                if(i != tid)
+                                {
+                                    MPI_Send(&contract_number, 1, MPI_INT, i, 6, MPI_COMM_WORLD );
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+                // When it's a request for resource
+                case 6:
+                    // If the process isn't requesting the same contract send an accept
+                    if(!trying_get_resource)
+                    {
+                        is_accepted = 1;
+                    }
+                    else
+                    {
+                        // Check in priority queue which process is higher
+                        if(priority_queue[status.MPI_SOURCE] < priority_queue[tid] && !using_resource)
+                        {
+                            is_accepted = 1;
+                        }
+                        else
+                        {
+                            is_accepted = 0;
+                        }
+                    }
+
+                    MPI_Send(&is_accepted, 1, MPI_INT, status.MPI_SOURCE, 7, MPI_COMM_WORLD );
+                    break;
+
+                // When it's a response for resource request
+                case 7:
+                    if(trying_get_resource)
+                    {
+                        // If process gets an accept increase the counter
+                        if(received)
+                        {
+                            accept_counter++;
+                        }
+
+                        // If process gets enough accepts for their resource start using it
+                        // Head professional write the report on the desk
+                        if(profession == 0)
+                        {
+                            if(accept_counter >= profession_count - desks)
+                            {
+                                trying_get_resource = 0;
+                                using_resource = 1;
+                                printf("%d: Making report\n", tid);
+                            }
+                        }
+                        // Torso professional get the skeleton
+                        if(profession == 1)
+                        {
+                            if(accept_counter >= profession_count - skeletons)
+                            {
+                                trying_get_resource = 0;
+                                using_resource = 1;
+                                printf("%d: Getting skeleton\n", tid);
+                            }
+                        }
+                    }
+
+                    // If the resource is used
+                    if(using_resource)
+                    {
+                        // When process is done with resource let the associates know
+                        for(int i = 0;i < 2;i++)
+                        {
+                            MPI_Send(&contract_number, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
+                            //printf("-------------------------------------------------------------------------%d\n", associates[i]);
+                        }
+                        MPI_Send(&contract_number, 1, MPI_INT, tid, 8, MPI_COMM_WORLD );
+
+                        using_resource = 0;
+
+                        is_accepted = 1;
+                        // Send accepts to everyone waiting for resource 
+                        for(int i = min_tid;i <= profession_array[profession];i++)
+                        {
+                            if(i != tid)
+                            {
+                                MPI_Send(&is_accepted, 1, MPI_INT, i, 7, MPI_COMM_WORLD );
+                            }
+                        }
+                    }
+
+                    break;
+
+                // When it's a message about being ready to revive
+                case 8:
+                    revive_counter++;
+
+                    /* When you get two messages (both professionals are done with resources)
+                        revive your part of the dragon */
+                    if(revive_counter == 2)
+                    {
+                        if(profession == 0)
+                        {
+                            printf("%d: Reviving head\n", tid);
+                        }
+                        if(profession == 1)
+                        {
+                            printf("%d: Reviving torso\n", tid);
+                        }
+                        if(profession == 2)
+                        {
+                            printf("%d: Reviving tail\n", tid);
+                        }
+
+                        // Reset all variables
+                        revive_counter = 0;
+                        accept_counter = 0;
+                        working = 0;
+
+                        for(int i = 0;i <= max_contract_index;i++)
+                        {
+                            if(active_contracts[i] != 0)
+                            {
+                                contract_number = active_contracts[i];
+                                break;
+                            }                            
+                        }
+                            
+                        // If there were no contracts waiting 
+                        if(received == contract_number)
+                        {
+                            contract_number = -1;
+                        }
+                        busy = 0;
+                    }
                     break;
 
             }
