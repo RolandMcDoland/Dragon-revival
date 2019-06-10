@@ -466,7 +466,8 @@ int main(int argc, char **argv)
                         for(int i = 0;i < 2;i++)
                         {
                             MPI_Send(&contract_number, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
-                            //printf("-------------------------------------------------------------------------%d\n", associates[i]);
+                            //printf("%d:-------------------------------------------------------------------------%d\n", profession, associates[i]);
+
                         }
                         MPI_Send(&contract_number, 1, MPI_INT, tid, 8, MPI_COMM_WORLD );
 
@@ -488,6 +489,7 @@ int main(int argc, char **argv)
                 // When it's a message about being ready to revive
                 case 8:
                     revive_counter++;
+                    //printf("rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr%d\n", revive_counter);
 
                     /* When you get two messages (both professionals are done with resources)
                         revive your part of the dragon */
@@ -510,6 +512,8 @@ int main(int argc, char **argv)
                         revive_counter = 0;
                         accept_counter = 0;
                         working = 0;
+                        associates[0] = 0;
+                        associates[1] = 0;
 
                         for(int i = 0;i <= max_contract_index;i++)
                         {
