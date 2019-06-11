@@ -133,6 +133,7 @@ int main(int argc, char **argv)
         int skeletons = 15;
         int revive_counter = 0;
         int associates_wait = 0;
+        int waiting_for_dragon = 0;
 
         int *priority_queue;
         priority_queue = malloc((size - 1) * sizeof(int));
@@ -469,6 +470,10 @@ int main(int argc, char **argv)
                                 using_resource = 1;
                                 printf("%d: Getting skeleton\n", tid);
                             }
+                            else if(accept_counter == profession_count - 1)
+                            {
+                                waiting_for_dragon = 1;
+                            }
                         }
                     }
 
@@ -552,6 +557,11 @@ int main(int argc, char **argv)
 
                 case 9:
                     skeletons++;
+
+                    if(waiting_for_dragon)
+                    {
+                        MPI_Send(&is_accepted, 1, MPI_INT, tid, 7, MPI_COMM_WORLD );
+                    }
 
                     break;
 
