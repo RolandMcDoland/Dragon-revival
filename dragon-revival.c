@@ -101,7 +101,7 @@ int main(int argc, char **argv)
         // 0- head expert, 1- torso expert, 2- tail expert
         int profession;
 
-        int min_tid, profession_count, received, accept_counter, is_accepted;
+        int min_tid, profession_count, received, accept_counter, is_accepted, restricted_contract;
 
         int contract_number = -1;
         int busy = 0;
@@ -158,7 +158,10 @@ int main(int argc, char **argv)
             {
                 // When it's a new contract
                 case 1:
-                    //printf("New contract received by %d\n", tid);
+                    if(received == restricted_contract)
+                    {
+                        break;
+                    }
 
                     if(contract_number == -1)
                     {
@@ -182,8 +185,6 @@ int main(int argc, char **argv)
                     // If the process is not busy send a request to everyone of your profession
                     if(!busy)
                     {
-                        //printf("%d: Sending new contract request for contract %d\n", tid, contract_number);
-
                         busy = 1;
                         accept_counter = 0;
 
@@ -206,17 +207,13 @@ int main(int argc, char **argv)
                     if(contract_number != received)
                     {
                         is_accepted = 1;
-                        //printf("%d:--------------------------------------------------------\n", tid);
+                        restricted_contract = received;
                     }
                     else
                     {
                         // Check in priority queue which process is higher
                         if(priority_queue[status.MPI_SOURCE] < priority_queue[tid] && !working)
                         {
-                            /*for(int i = min_tid ;i <= profession_array[profession];i++)
-                            {
-                                printf("%d:------------------------------------------------------%d, %d\n",tid, i, priority_queue[i]);
-                            }*/
                             is_accepted = 1;
                         }
                         else
@@ -336,10 +333,8 @@ int main(int argc, char **argv)
                             {
                                 priority_queue[i] -= 1;
                             }
-                            //printf("-------------------------------------------------%d, %d\n",i, priority_queue[i]);
                         }
                         priority_queue[status.MPI_SOURCE] = profession_count - 1;
-                        //printf("-------------------------------------------------%d, %d\n",status.MPI_SOURCE, priority_queue[status.MPI_SOURCE]);
                     }
                     else
                     {
@@ -384,7 +379,6 @@ int main(int argc, char **argv)
                     {
                         associates_wait = 0;
                         waiting_for_team = 0;
-                        //printf("%d Ready to go!\n", tid);
 
                         // Send request for desk and skeleton
                         if(profession != 2)
@@ -466,7 +460,6 @@ int main(int argc, char **argv)
                         for(int i = 0;i < 2;i++)
                         {
                             MPI_Send(&contract_number, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
-                            //printf("%d:-------------------------------------------------------------------------%d\n", profession, associates[i]);
 
                         }
                         MPI_Send(&contract_number, 1, MPI_INT, tid, 8, MPI_COMM_WORLD );
@@ -489,8 +482,7 @@ int main(int argc, char **argv)
                 // When it's a message about being ready to revive
                 case 8:
                     revive_counter++;
-                    //printf("rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr%d\n", revive_counter);
-
+                    
                     /* When you get two messages (both professionals are done with resources)
                         revive your part of the dragon */
                     if(revive_counter == 2)
