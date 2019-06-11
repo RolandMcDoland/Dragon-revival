@@ -55,10 +55,10 @@ int main(int argc, char **argv)
 
         /* Pass size - 1 as available processes since 
         root is exclusively devoted to generating contracts */
-        profession_array = setup(size - 1);
+        profession_array = setup(size - 2);
 
         // Notify all processes about the profession assignment
-        for (int i = 1; i < size; i++)
+        for (int i = 1; i < size - 1; i++)
         {
             MPI_Send(profession_array, 3, MPI_INT, i, 0, MPI_COMM_WORLD );
             printf("Sending profession array\n");
@@ -79,12 +79,31 @@ int main(int argc, char **argv)
 
             printf("Sending new contract\n");
             // Notify all processes about the profession assignment
-            for (int i = 1; i < size; i++)
+            for (int i = 1; i <size - 1; i++)
             {
                 MPI_Send(&contract_counter, 1, MPI_INT, i, 1, MPI_COMM_WORLD );
             }
 
             contract_counter++;
+        }
+    }
+    else if(tid == size - 1)
+    {
+        int seconds;
+        srand(time(NULL));
+
+        // Main loop- kill a dragon at random
+        while(1)
+        {
+            // Wait random amount of time
+            seconds = rand() % 9 + 1;
+            sleep(seconds);
+
+            // Notify all processes about the death of dragon
+            for (int i = 1; i <size - 1; i++)
+            {
+                MPI_Send(&seconds, 1, MPI_INT, i, 9, MPI_COMM_WORLD );
+            }
         }
     }
     else
@@ -111,12 +130,12 @@ int main(int argc, char **argv)
         int trying_get_resource = 0;
         int using_resource = 0;
         int desks = 1;
-        int skeletons = 1;
+        int skeletons = 15;
         int revive_counter = 0;
         int associates_wait = 0;
 
         int *priority_queue;
-        priority_queue = malloc(size * sizeof(int));
+        priority_queue = malloc((size - 1) * sizeof(int));
 
         // Receive the profession array to know every process profession
         MPI_Recv(profession_array, 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -241,7 +260,7 @@ int main(int argc, char **argv)
                         printf("%d: Taking care of contract %d\n", tid, contract_number);
 
                         // Send an information about doing the contract to all processes
-                        for(int i = 1;i < size;i++)
+                        for(int i = 1;i < size - 1;i++)
                         {
                             if(i != tid)
                             {
@@ -465,6 +484,7 @@ int main(int argc, char **argv)
                         MPI_Send(&contract_number, 1, MPI_INT, tid, 8, MPI_COMM_WORLD );
 
                         using_resource = 0;
+                        skeletons--;
 
                         is_accepted = 1;
                         // Send accepts to everyone waiting for resource 
@@ -473,6 +493,11 @@ int main(int argc, char **argv)
                             if(i != tid)
                             {
                                 MPI_Send(&is_accepted, 1, MPI_INT, i, 7, MPI_COMM_WORLD );
+
+                                if(profession == 1)
+                                {
+                                    MPI_Send(&is_accepted, 1, MPI_INT, i, 10, MPI_COMM_WORLD );
+                                }
                             }
                         }
                     }
@@ -482,7 +507,7 @@ int main(int argc, char **argv)
                 // When it's a message about being ready to revive
                 case 8:
                     revive_counter++;
-                    
+
                     /* When you get two messages (both professionals are done with resources)
                         revive your part of the dragon */
                     if(revive_counter == 2)
@@ -523,6 +548,16 @@ int main(int argc, char **argv)
                         }
                         busy = 0;
                     }
+                    break;
+
+                case 9:
+                    skeletons++;
+
+                    break;
+
+                case 10:
+                    skeletons--;
+
                     break;
 
             }
