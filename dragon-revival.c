@@ -1,8 +1,6 @@
 #include <mpi.h>
 #include <stdlib.h>
 #include <stdio.h> 
-#include <pthread.h>
-#include <semaphore.h>
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
@@ -75,6 +73,7 @@ int main(int argc, char **argv)
         {
             // Wait random amount of time
             seconds = rand() % 9 + 1;
+            seconds = 1;
             sleep(seconds);
 
             printf("Sending new contract\n");
@@ -183,7 +182,7 @@ int main(int argc, char **argv)
                         break;
                     }
 
-                    if(contract_number == -1)
+                    if(contract_number == -1 && !busy)
                     {
                         contract_number = received;
                     }
@@ -207,6 +206,7 @@ int main(int argc, char **argv)
                     {
                         busy = 1;
                         accept_counter = 0;
+                        associates_wait = 0;
 
                         for(int i = min_tid;i <= profession_array[profession];i++)
                         {
@@ -292,11 +292,13 @@ int main(int argc, char **argv)
                         waiting_for_team = 1;
                         working = 1;
 
+                        //printf("%d: ************************************************** %d %d\n",tid,associates[0],associates[1]);
                         if(associates[0] != 0 && associates[1] != 0)
                         {
                             // When process knows both associates let them know the team is ready
                             for(int i = 0;i < 2;i++)
                             {
+                                //printf("%d: ////////////////////////////////////////// %d\n",tid,associates[i]);
                                 MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
                             }
                             MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
@@ -308,6 +310,7 @@ int main(int argc, char **argv)
                 // When it's a message about a process taking up a contract
                 case 4:
                     // If the process is in the same profession
+                    //printf("%d:============================================ \n",tid);
                     if(status.MPI_SOURCE >= min_tid && status.MPI_SOURCE <= profession_array[profession])
                     { 
                         // Remove potential associates
@@ -358,9 +361,14 @@ int main(int argc, char **argv)
                     }
                     else
                     {
+                        /*for(int i = 0;i < 2;i++)
+                        {
+                            printf("%d: ////////////////////////////////////////// %d\n",tid,associates[i]);
+                        }*/
                         // If the expert of a different profession takes up the same contract
                         if(received == contract_number)
                         {
+                            printf("%d $$$$$$$$$$$$$$$$$$$$$$$$ %d\n",tid,contract_number);
                             if(associates[0] == 0)
                             {
                                 associates[0] = status.MPI_SOURCE;
@@ -374,6 +382,7 @@ int main(int argc, char **argv)
                                     // When process knows both associates let them know the team is ready
                                     for(int i = 0;i < 2;i++)
                                     {
+                                        //printf("%d: ////////////////////////////////////////// %d\n",tid,associates[i]);
                                         MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
                                     }
                                     MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
@@ -388,15 +397,16 @@ int main(int argc, char **argv)
                 // When it's a message about the whole team of professionals being ready
                 case 5:
                     // If the process already received the notification break
-                    if(!waiting_for_team)
+                    /*if(!waiting_for_team)
                     {
                         break;
-                    }
+                    }*/
 
                     associates_wait++;
 
                     if(associates_wait == 3)
                     {
+                        //printf("%d ----------------------------------------------\n",tid);
                         associates_wait = 0;
                         waiting_for_team = 0;
 
