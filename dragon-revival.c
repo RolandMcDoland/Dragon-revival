@@ -36,6 +36,12 @@ int * setup(size)
     return prof_array;
 }
 
+int maxClock(int a, int b)
+{
+	if(a>b) return a;
+	else return b;
+}
+
 int main(int argc, char **argv)
 {
     int size, tid;
@@ -48,6 +54,11 @@ int main(int argc, char **argv)
 
     if(tid == 0)
     {
+		
+		int clock = 1;
+		int *packet;
+		packet = malloc(2*sizeof(int));
+		
         int *profession_array;
         profession_array = malloc(3 * sizeof(int));
 
@@ -75,12 +86,17 @@ int main(int argc, char **argv)
             seconds = rand() % 9 + 1;
             seconds = 1;
             sleep(seconds);
+			
+			packet[0] = contract_counter;
 
             printf("Sending new contract\n");
             // Notify all processes about the profession assignment
             for (int i = 1; i <size - 1; i++)
             {
-                MPI_Send(&contract_counter, 1, MPI_INT, i, 1, MPI_COMM_WORLD );
+				clock++;
+				packet[1] = clock;
+				MPI_Send(packet, 1, MPI_INT, i, 1, MPI_COMM_WORLD );
+                //MPI_Send(&contract_counter, 1, MPI_INT, i, 1, MPI_COMM_WORLD );
             }
 
             contract_counter++;
@@ -88,6 +104,10 @@ int main(int argc, char **argv)
     }
     else if(tid == size - 1)
     {
+		int clock = 0;
+		int *packet;
+		packet = malloc(2*sizeof(int));
+		
         int seconds;
         srand(time(NULL));
 
@@ -97,11 +117,16 @@ int main(int argc, char **argv)
             // Wait random amount of time
             seconds = rand() % 9 + 1;
             sleep(seconds);
+			
+			packet[0] = seconds;
 
             // Notify all processes about the death of dragon
             for (int i = 1; i <size - 1; i++)
             {
-                MPI_Send(&seconds, 1, MPI_INT, i, 9, MPI_COMM_WORLD );
+				clock++;
+				packet[1] = clock;
+                //MPI_Send(&seconds, 1, MPI_INT, i, 9, MPI_COMM_WORLD );
+				MPI_Send(packet, 1, MPI_INT, i, 9, MPI_COMM_WORLD );
             }
         }
     }
@@ -136,6 +161,10 @@ int main(int argc, char **argv)
 
         int *priority_queue;
         priority_queue = malloc((size - 1) * sizeof(int));
+		
+		int clock = 2;
+		int *packet;
+		packet = malloc(2*sizeof(int));
 
         // Receive the profession array to know every process profession
         MPI_Recv(profession_array, 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -170,7 +199,11 @@ int main(int argc, char **argv)
         // Only receive for testing purposes for now
         while(1)
         {
-            MPI_Recv(&received, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);        
+            //MPI_Recv(&received, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			MPI_Recv(packet, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			received = packet[0];
+			clock = maxClock(clock, packet[1]);
+			clock++;
 
             // Depending on the tag process appropriatly
             switch(status.MPI_TAG)
@@ -212,7 +245,11 @@ int main(int argc, char **argv)
                         {
                             if(i != tid)
                             {
-                                MPI_Send(&contract_number, 1, MPI_INT, i, 2, MPI_COMM_WORLD );
+								clock++;
+								packet[0]=contract_number;
+								packet[1] = clock;
+                                //MPI_Send(&contract_number, 1, MPI_INT, i, 2, MPI_COMM_WORLD );
+								MPI_Send(packet, 1, MPI_INT, i, 2, MPI_COMM_WORLD );
                             }
                         }
                     }
@@ -241,8 +278,12 @@ int main(int argc, char **argv)
                             is_accepted = 0;
                         }
                     }
-
-                    MPI_Send(&is_accepted, 1, MPI_INT, status.MPI_SOURCE, 3, MPI_COMM_WORLD );
+					
+					clock++;
+					packet[0] = is_accepted;
+					packet[1] = clock;
+                    //MPI_Send(&is_accepted, 1, MPI_INT, status.MPI_SOURCE, 3, MPI_COMM_WORLD );
+					MPI_Send(packet, 1, MPI_INT, status.MPI_SOURCE, 3, MPI_COMM_WORLD );
                     //printf("Sending a response to %d\n", status.MPI_SOURCE);
 
                     break;
@@ -265,7 +306,11 @@ int main(int argc, char **argv)
                         {
                             if(i != tid)
                             {
-                                MPI_Send(&contract_number, 1, MPI_INT, i, 4, MPI_COMM_WORLD );
+								clock++;
+								packet[0] = contract_number;
+								packet[1] = clock;
+                                //MPI_Send(&contract_number, 1, MPI_INT, i, 4, MPI_COMM_WORLD );
+								MPI_Send(packet, 1, MPI_INT, i, 4, MPI_COMM_WORLD );
                             }
                         }
                         
@@ -298,10 +343,18 @@ int main(int argc, char **argv)
                             // When process knows both associates let them know the team is ready
                             for(int i = 0;i < 2;i++)
                             {
+								clock++;
+								packet[0] = contract_number;
+								packet[1] = clock;
                                 //printf("%d: ////////////////////////////////////////// %d\n",tid,associates[i]);
-                                MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+                                //MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+								MPI_Send(packet, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
                             }
-                            MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
+							clock++;
+							packet[0] = contract_number;
+							packet[1] = clock;
+                            //MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
+							MPI_Send(packet, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
                         }
                     }
 
@@ -382,10 +435,18 @@ int main(int argc, char **argv)
                                     // When process knows both associates let them know the team is ready
                                     for(int i = 0;i < 2;i++)
                                     {
+										clock++;
+										packet[0] = contract_number;
+										packet[1] = clock;
                                         //printf("%d: ////////////////////////////////////////// %d\n",tid,associates[i]);
-                                        MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+                                        //MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+										MPI_Send(packet, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
                                     }
-                                    MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
+									clock++;
+									packet[0] = contract_number;
+									packet[1] = clock;
+                                    //MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
+									MPI_Send(packet, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
                                 }
                             }
                         }
@@ -420,7 +481,11 @@ int main(int argc, char **argv)
                             {
                                 if(i != tid)
                                 {
-                                    MPI_Send(&contract_number, 1, MPI_INT, i, 6, MPI_COMM_WORLD );
+									clock++;
+									packet[0] = contract_number;
+									packet[1] = clock;
+                                    //MPI_Send(&contract_number, 1, MPI_INT, i, 6, MPI_COMM_WORLD );
+									MPI_Send(packet, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
                                 }
                             }
                         }
@@ -446,8 +511,11 @@ int main(int argc, char **argv)
                             is_accepted = 0;
                         }
                     }
-
-                    MPI_Send(&is_accepted, 1, MPI_INT, status.MPI_SOURCE, 7, MPI_COMM_WORLD );
+					clock++;
+					packet[0] = is_accepted;
+					packet[1] = clock;
+                    //MPI_Send(&is_accepted, 1, MPI_INT, status.MPI_SOURCE, 7, MPI_COMM_WORLD );
+					MPI_Send(packet, 1, MPI_INT, status.MPI_SOURCE, 7, MPI_COMM_WORLD );
                     break;
 
                 // When it's a response for resource request
@@ -493,10 +561,18 @@ int main(int argc, char **argv)
                         // When process is done with resource let the associates know
                         for(int i = 0;i < 2;i++)
                         {
-                            MPI_Send(&contract_number, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
+							clock++;
+							packet[0] = contract_number;
+							packet[1] = clock;
+                            //MPI_Send(&contract_number, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
+							MPI_Send(packet, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
 
                         }
-                        MPI_Send(&contract_number, 1, MPI_INT, tid, 8, MPI_COMM_WORLD );
+						clock++;
+						packet[0] = contract_number;
+						packet[1] = clock;
+                        //MPI_Send(&contract_number, 1, MPI_INT, tid, 8, MPI_COMM_WORLD );
+						MPI_Send(packet, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
 
                         using_resource = 0;
                         skeletons--;
@@ -507,11 +583,19 @@ int main(int argc, char **argv)
                         {
                             if(i != tid)
                             {
-                                MPI_Send(&is_accepted, 1, MPI_INT, i, 7, MPI_COMM_WORLD );
+								clock++;
+								packet[0] = is_accepted;
+								packet[1] = clock;
+                                //MPI_Send(&is_accepted, 1, MPI_INT, i, 7, MPI_COMM_WORLD );
+								MPI_Send(packet, 1, MPI_INT, i, 7, MPI_COMM_WORLD );
 
                                 if(profession == 1)
                                 {
-                                    MPI_Send(&is_accepted, 1, MPI_INT, i, 10, MPI_COMM_WORLD );
+									clock++;
+									packet[0] = is_accepted;
+									packet[1] = clock;
+                                    //MPI_Send(&is_accepted, 1, MPI_INT, i, 10, MPI_COMM_WORLD );
+									MPI_Send(packet, 1, MPI_INT, i, 10, MPI_COMM_WORLD );
                                 }
                             }
                         }
@@ -570,7 +654,11 @@ int main(int argc, char **argv)
 
                     if(waiting_for_dragon)
                     {
-                        MPI_Send(&is_accepted, 1, MPI_INT, tid, 7, MPI_COMM_WORLD );
+						clock++;
+						packet[0] = is_accepted;
+						packet[1] = clock;
+                        //MPI_Send(&is_accepted, 1, MPI_INT, tid, 7, MPI_COMM_WORLD );
+						MPI_Send(packet, 1, MPI_INT, tid, 7, MPI_COMM_WORLD );
                     }
 
                     break;
