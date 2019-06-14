@@ -84,18 +84,17 @@ int main(int argc, char **argv)
         {
             // Wait random amount of time
             seconds = rand() % 9 + 1;
-            seconds = 1;
             sleep(seconds);
 			
 			packet[0] = contract_counter;
 
-            printf("Sending new contract\n");
+            printf("Sending new contract (%d)\n", clock);
             // Notify all processes about the profession assignment
             for (int i = 1; i <size - 1; i++)
             {
 				clock++;
 				packet[1] = clock;
-				MPI_Send(packet, 1, MPI_INT, i, 1, MPI_COMM_WORLD );
+				MPI_Send(packet, 2, MPI_INT, i, 1, MPI_COMM_WORLD );
                 //MPI_Send(&contract_counter, 1, MPI_INT, i, 1, MPI_COMM_WORLD );
             }
 
@@ -126,7 +125,7 @@ int main(int argc, char **argv)
 				clock++;
 				packet[1] = clock;
                 //MPI_Send(&seconds, 1, MPI_INT, i, 9, MPI_COMM_WORLD );
-				MPI_Send(packet, 1, MPI_INT, i, 9, MPI_COMM_WORLD );
+				MPI_Send(packet, 2, MPI_INT, i, 9, MPI_COMM_WORLD );
             }
         }
     }
@@ -199,8 +198,7 @@ int main(int argc, char **argv)
         // Only receive for testing purposes for now
         while(1)
         {
-            //MPI_Recv(&received, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-			MPI_Recv(packet, 1, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+			MPI_Recv(packet, 2, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			received = packet[0];
 			clock = maxClock(clock, packet[1]);
 			clock++;
@@ -248,8 +246,7 @@ int main(int argc, char **argv)
 								clock++;
 								packet[0]=contract_number;
 								packet[1] = clock;
-                                //MPI_Send(&contract_number, 1, MPI_INT, i, 2, MPI_COMM_WORLD );
-								MPI_Send(packet, 1, MPI_INT, i, 2, MPI_COMM_WORLD );
+								MPI_Send(packet, 2, MPI_INT, i, 2, MPI_COMM_WORLD );
                             }
                         }
                     }
@@ -258,8 +255,6 @@ int main(int argc, char **argv)
 
                 // When it's a new contract request
                 case 2:
-                    //printf("%d: Received new contract request for contract %d\n", tid, received);
-
                     // If the process isn't requesting the same contract send an accept
                     if(contract_number != received)
                     {
@@ -282,9 +277,7 @@ int main(int argc, char **argv)
 					clock++;
 					packet[0] = is_accepted;
 					packet[1] = clock;
-                    //MPI_Send(&is_accepted, 1, MPI_INT, status.MPI_SOURCE, 3, MPI_COMM_WORLD );
-					MPI_Send(packet, 1, MPI_INT, status.MPI_SOURCE, 3, MPI_COMM_WORLD );
-                    //printf("Sending a response to %d\n", status.MPI_SOURCE);
+					MPI_Send(packet, 2, MPI_INT, status.MPI_SOURCE, 3, MPI_COMM_WORLD );
 
                     break;
 
@@ -299,7 +292,7 @@ int main(int argc, char **argv)
                     // If process gets accepts from all other professionals
                     if(profession_count - 1 == accept_counter)
                     {
-                        printf("%d: Taking care of contract %d\n", tid, contract_number);
+                        printf("%d: Taking care of contract %d (%d)\n", tid, contract_number, clock);
 
                         // Send an information about doing the contract to all processes
                         for(int i = 1;i < size - 1;i++)
@@ -309,8 +302,7 @@ int main(int argc, char **argv)
 								clock++;
 								packet[0] = contract_number;
 								packet[1] = clock;
-                                //MPI_Send(&contract_number, 1, MPI_INT, i, 4, MPI_COMM_WORLD );
-								MPI_Send(packet, 1, MPI_INT, i, 4, MPI_COMM_WORLD );
+								MPI_Send(packet, 2, MPI_INT, i, 4, MPI_COMM_WORLD );
                             }
                         }
                         
@@ -337,7 +329,6 @@ int main(int argc, char **argv)
                         waiting_for_team = 1;
                         working = 1;
 
-                        //printf("%d: ************************************************** %d %d\n",tid,associates[0],associates[1]);
                         if(associates[0] != 0 && associates[1] != 0)
                         {
                             // When process knows both associates let them know the team is ready
@@ -346,15 +337,12 @@ int main(int argc, char **argv)
 								clock++;
 								packet[0] = contract_number;
 								packet[1] = clock;
-                                //printf("%d: ////////////////////////////////////////// %d\n",tid,associates[i]);
-                                //MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
-								MPI_Send(packet, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+								MPI_Send(packet, 2, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
                             }
 							clock++;
 							packet[0] = contract_number;
 							packet[1] = clock;
-                            //MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
-							MPI_Send(packet, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
+							MPI_Send(packet, 2, MPI_INT, tid, 5, MPI_COMM_WORLD );
                         }
                     }
 
@@ -363,13 +351,8 @@ int main(int argc, char **argv)
                 // When it's a message about a process taking up a contract
                 case 4:
                     // If the process is in the same profession
-                    //printf("%d:============================================ \n",tid);
                     if(status.MPI_SOURCE >= min_tid && status.MPI_SOURCE <= profession_array[profession])
                     { 
-                        // Remove potential associates
-                        associates[0] = 0;
-                        associates[1] = 0;
-
                         // Remove contract from active contracts waiting for completion
                         for(int i = 0;i <= max_contract_index;i++)
                         {
@@ -383,6 +366,13 @@ int main(int argc, char **argv)
                             and get first undone contract */
                         if(received == contract_number && busy)
                         {
+                            if(!working)
+                            {
+                                // Remove potential associates
+                                associates[0] = 0;
+                                associates[1] = 0;
+                            }
+
                             accept_counter = 0;
 
                             for(int i = 0;i <= max_contract_index;i++)
@@ -414,14 +404,9 @@ int main(int argc, char **argv)
                     }
                     else
                     {
-                        /*for(int i = 0;i < 2;i++)
-                        {
-                            printf("%d: ////////////////////////////////////////// %d\n",tid,associates[i]);
-                        }*/
                         // If the expert of a different profession takes up the same contract
                         if(received == contract_number)
                         {
-                            printf("%d $$$$$$$$$$$$$$$$$$$$$$$$ %d\n",tid,contract_number);
                             if(associates[0] == 0)
                             {
                                 associates[0] = status.MPI_SOURCE;
@@ -438,15 +423,12 @@ int main(int argc, char **argv)
 										clock++;
 										packet[0] = contract_number;
 										packet[1] = clock;
-                                        //printf("%d: ////////////////////////////////////////// %d\n",tid,associates[i]);
-                                        //MPI_Send(&contract_number, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
-										MPI_Send(packet, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+										MPI_Send(packet, 2, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
                                     }
 									clock++;
 									packet[0] = contract_number;
 									packet[1] = clock;
-                                    //MPI_Send(&contract_number, 1, MPI_INT, tid, 5, MPI_COMM_WORLD );
-									MPI_Send(packet, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+									MPI_Send(packet, 2, MPI_INT, tid, 5, MPI_COMM_WORLD );
                                 }
                             }
                         }
@@ -457,17 +439,10 @@ int main(int argc, char **argv)
 
                 // When it's a message about the whole team of professionals being ready
                 case 5:
-                    // If the process already received the notification break
-                    /*if(!waiting_for_team)
-                    {
-                        break;
-                    }*/
-
                     associates_wait++;
 
                     if(associates_wait == 3)
                     {
-                        //printf("%d ----------------------------------------------\n",tid);
                         associates_wait = 0;
                         waiting_for_team = 0;
 
@@ -484,8 +459,7 @@ int main(int argc, char **argv)
 									clock++;
 									packet[0] = contract_number;
 									packet[1] = clock;
-                                    //MPI_Send(&contract_number, 1, MPI_INT, i, 6, MPI_COMM_WORLD );
-									MPI_Send(packet, 1, MPI_INT, associates[i], 5, MPI_COMM_WORLD );
+									MPI_Send(packet, 2, MPI_INT, i, 6, MPI_COMM_WORLD );
                                 }
                             }
                         }
@@ -494,15 +468,15 @@ int main(int argc, char **argv)
                     break;
                 // When it's a request for resource
                 case 6:
-                    // If the process isn't requesting the same contract send an accept
-                    if(!trying_get_resource)
+                    // If the process isn't requesting the resource send an accept
+                    if(!trying_get_resource && !using_resource)
                     {
                         is_accepted = 1;
                     }
                     else
                     {
-                        // Check in priority queue which process is higher
-                        if(priority_queue[status.MPI_SOURCE] < priority_queue[tid] && !using_resource)
+                        // Check which process has an earlier contract
+                        if(received < contract_number && !using_resource)
                         {
                             is_accepted = 1;
                         }
@@ -514,8 +488,7 @@ int main(int argc, char **argv)
 					clock++;
 					packet[0] = is_accepted;
 					packet[1] = clock;
-                    //MPI_Send(&is_accepted, 1, MPI_INT, status.MPI_SOURCE, 7, MPI_COMM_WORLD );
-					MPI_Send(packet, 1, MPI_INT, status.MPI_SOURCE, 7, MPI_COMM_WORLD );
+					MPI_Send(packet, 2, MPI_INT, status.MPI_SOURCE, 7, MPI_COMM_WORLD );
                     break;
 
                 // When it's a response for resource request
@@ -536,7 +509,7 @@ int main(int argc, char **argv)
                             {
                                 trying_get_resource = 0;
                                 using_resource = 1;
-                                printf("%d: Making report\n", tid);
+                                printf("%d: Making report (%d)\n", tid, clock);
                             }
                         }
                         // Torso professional get the skeleton
@@ -546,7 +519,7 @@ int main(int argc, char **argv)
                             {
                                 trying_get_resource = 0;
                                 using_resource = 1;
-                                printf("%d: Getting skeleton\n", tid);
+                                printf("%d: Getting skeleton (%d)\n", tid, clock);
                             }
                             else if(accept_counter == profession_count - 1)
                             {
@@ -564,18 +537,26 @@ int main(int argc, char **argv)
 							clock++;
 							packet[0] = contract_number;
 							packet[1] = clock;
-                            //MPI_Send(&contract_number, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
-							MPI_Send(packet, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
-
+							MPI_Send(packet, 2, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
                         }
 						clock++;
 						packet[0] = contract_number;
 						packet[1] = clock;
-                        //MPI_Send(&contract_number, 1, MPI_INT, tid, 8, MPI_COMM_WORLD );
-						MPI_Send(packet, 1, MPI_INT, associates[i], 8, MPI_COMM_WORLD );
+						MPI_Send(packet, 2, MPI_INT, tid, 8, MPI_COMM_WORLD );
 
-                        using_resource = 0;
                         skeletons--;
+
+                        // Notify all torso experts about decresed skeletons
+                        for(int i = min_tid;i <= profession_array[profession];i++)
+                        {
+                            if(i != tid)
+                            {
+								clock++;
+								packet[0] = is_accepted;
+								packet[1] = clock;									
+                                MPI_Send(packet, 2, MPI_INT, i, 10, MPI_COMM_WORLD );
+                            }
+                        }
 
                         is_accepted = 1;
                         // Send accepts to everyone waiting for resource 
@@ -586,19 +567,11 @@ int main(int argc, char **argv)
 								clock++;
 								packet[0] = is_accepted;
 								packet[1] = clock;
-                                //MPI_Send(&is_accepted, 1, MPI_INT, i, 7, MPI_COMM_WORLD );
-								MPI_Send(packet, 1, MPI_INT, i, 7, MPI_COMM_WORLD );
-
-                                if(profession == 1)
-                                {
-									clock++;
-									packet[0] = is_accepted;
-									packet[1] = clock;
-                                    //MPI_Send(&is_accepted, 1, MPI_INT, i, 10, MPI_COMM_WORLD );
-									MPI_Send(packet, 1, MPI_INT, i, 10, MPI_COMM_WORLD );
-                                }
+								MPI_Send(packet, 2, MPI_INT, i, 7, MPI_COMM_WORLD );
                             }
                         }
+
+                        using_resource = 0;
                     }
 
                     break;
@@ -613,15 +586,15 @@ int main(int argc, char **argv)
                     {
                         if(profession == 0)
                         {
-                            printf("%d: Reviving head\n", tid);
+                            printf("%d: Reviving head (%d)\n", tid, clock);
                         }
                         if(profession == 1)
                         {
-                            printf("%d: Reviving torso\n", tid);
+                            printf("%d: Reviving torso (%d)\n", tid, clock);
                         }
                         if(profession == 2)
                         {
-                            printf("%d: Reviving tail\n", tid);
+                            printf("%d: Reviving tail (%d)\n", tid, clock);
                         }
 
                         // Reset all variables
@@ -655,10 +628,11 @@ int main(int argc, char **argv)
                     if(waiting_for_dragon)
                     {
 						clock++;
-						packet[0] = is_accepted;
+						packet[0] = 1;
 						packet[1] = clock;
-                        //MPI_Send(&is_accepted, 1, MPI_INT, tid, 7, MPI_COMM_WORLD );
-						MPI_Send(packet, 1, MPI_INT, tid, 7, MPI_COMM_WORLD );
+						MPI_Send(packet, 2, MPI_INT, tid, 7, MPI_COMM_WORLD );
+
+                        waiting_for_dragon = 0;
                     }
 
                     break;
@@ -666,7 +640,7 @@ int main(int argc, char **argv)
                 case 10:
                     skeletons--;
 
-                    break;
+                    break;  
 
             }
         }
